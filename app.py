@@ -1,15 +1,29 @@
 """Limon — OS Course Instructor (Streamlit web UI)."""
 
 import json
+import re
 from datetime import datetime
 from pathlib import Path
 
 import ollama
 import streamlit as st
 
+from visuals import render_visual
+
 MODEL = "qwen2.5-coder:7b"
 SYSTEM_PROMPT_PATH = Path(__file__).parent / ".claude" / "instructor.md"
 PROGRESS_FILE = Path(__file__).parent / "progress.json"
+
+_VISUAL_RE = re.compile(r"\[VISUAL:([a-z_]+)(?::([^\]]*))?\]", re.IGNORECASE)
+
+
+def parse_visual_tag(text: str) -> tuple[str, str, str]:
+    """Strip [VISUAL:name:args] from text. Returns (clean_text, tag_name, args)."""
+    match = _VISUAL_RE.search(text)
+    if not match:
+        return text, "", ""
+    clean = _VISUAL_RE.sub("", text).strip()
+    return clean, match.group(1).lower(), (match.group(2) or "")
 
 
 @st.cache_data
@@ -48,6 +62,16 @@ def aria_respond(system_prompt: str, messages: list) -> str:
         st.stop()
 
 
+def display_visual(tag_name: str, args: str) -> None:
+    if not tag_name:
+        return
+    kind, data = render_visual(tag_name, args)
+    if kind == "matplotlib":
+        st.pyplot(data)
+    elif kind == "graphviz":
+        st.graphviz_chart(data)
+
+
 def main() -> None:
     st.set_page_config(page_title="Limon — OS Instructor", page_icon="📘", layout="centered")
     st.title("📘 Limon — OS Course Instructor")
@@ -55,7 +79,6 @@ def main() -> None:
 
     system_prompt = load_system_prompt()
 
-    # Sidebar: Finish Session button
     with st.sidebar:
         st.markdown("### Session")
         if st.button("Finish Session", type="primary", use_container_width=True):
@@ -68,30 +91,28 @@ def main() -> None:
     if "messages" not in st.session_state:
         saved = load_progress()
         if saved:
-            # Resume previous session
             st.session_state.messages = saved
             resume_trigger = saved + [{"role": "user", "content": "[RESUME_SESSION]"}]
             welcome_back = aria_respond(system_prompt, resume_trigger)
             st.session_state.messages.append({"role": "user", "content": "[RESUME_SESSION]"})
             st.session_state.messages.append({"role": "assistant", "content": welcome_back})
         else:
-            # Fresh start
             st.session_state.messages = []
             greeting_trigger = [{"role": "user", "content": "Hello"}]
             greeting = aria_respond(system_prompt, greeting_trigger)
             st.session_state.messages.append({"role": "user", "content": "Hello"})
             st.session_state.messages.append({"role": "assistant", "content": greeting})
 
-    # Display conversation (hide internal trigger messages)
     hidden = {"Hello", "[RESUME_SESSION]"}
     display_messages = [
         m for i, m in enumerate(st.session_state.messages)
-        if not (m["role"] == "user" and m["content"] in hidden and
-                i < 2)
+        if not (m["role"] == "user" and m["content"] in hidden and i < 2)
     ]
     for msg in display_messages:
         with st.chat_message(msg["role"], avatar="📘" if msg["role"] == "assistant" else None):
-            st.markdown(msg["content"])
+            clean, tag_name, tag_args = parse_visual_tag(msg["content"])
+            st.markdown(clean)
+            display_visual(tag_name, tag_args)
 
     if user_input := st.chat_input("Ask Limon anything about Operating Systems..."):
         st.session_state.messages.append({"role": "user", "content": user_input})
@@ -101,7 +122,9 @@ def main() -> None:
         with st.chat_message("assistant", avatar="📘"):
             with st.spinner("Limon is thinking..."):
                 response_text = aria_respond(system_prompt, st.session_state.messages)
-            st.markdown(response_text)
+            clean, tag_name, tag_args = parse_visual_tag(response_text)
+            st.markdown(clean)
+            display_visual(tag_name, tag_args)
 
         st.session_state.messages.append({"role": "assistant", "content": response_text})
 
