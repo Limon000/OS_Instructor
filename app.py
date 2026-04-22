@@ -16,9 +16,38 @@ PROGRESS_FILE = Path(__file__).parent / "progress.json"
 
 _VISUAL_RE = re.compile(r"\[VISUAL:([a-z_]+)(?::([^\]]*))?\]", re.IGNORECASE)
 
+OFF_TOPIC_MSG = (
+    "📌 Just so you know, **{topic}** is not part of this Operating Systems course.\n\n"
+    "But if you're curious, I'm happy to explain it as a special request! 😊"
+)
+
+_CLASSIFIER_PROMPT = (
+    "Answer only YES or NO — nothing else.\n"
+    "Is the following message related to Operating Systems (OS) topics such as "
+    "processes, threads, scheduling, memory management, file systems, I/O, "
+    "synchronization, virtualization, or OS security?\n\n"
+    "Message: {message}\n\nAnswer:"
+)
+
+
+def _short_label(text: str) -> str:
+    words = text.split()
+    label = " ".join(words[:6])
+    return label + ("…" if len(words) > 6 else "")
+
+
+def is_on_topic(user_input: str) -> bool:
+    try:
+        resp = ollama.chat(
+            model=MODEL,
+            messages=[{"role": "user", "content": _CLASSIFIER_PROMPT.format(message=user_input)}],
+        )
+        return resp.message.content.strip().upper().startswith("Y")
+    except Exception:
+        return True
+
 
 def parse_visual_tag(text: str) -> tuple[str, str, str]:
-    """Strip [VISUAL:name:args] from text. Returns (clean_text, tag_name, args)."""
     match = _VISUAL_RE.search(text)
     if not match:
         return text, "", ""
@@ -26,7 +55,6 @@ def parse_visual_tag(text: str) -> tuple[str, str, str]:
     return clean, match.group(1).lower(), (match.group(2) or "")
 
 
-@st.cache_data
 def load_system_prompt() -> str:
     if not SYSTEM_PROMPT_PATH.exists():
         st.error(f"System prompt not found at {SYSTEM_PROMPT_PATH}")
@@ -114,19 +142,59 @@ def main() -> None:
             st.markdown(clean)
             display_visual(tag_name, tag_args)
 
-    if user_input := st.chat_input("Ask Limon anything about Operating Systems..."):
+    # Yes / No buttons when an off-topic question is pending
+    if st.session_state.get("pending_off_topic"):
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("✅ Yes, explain it", use_container_width=True, type="primary"):
+                pending = st.session_state.pop("pending_off_topic")
+                st.session_state.messages.append({"role": "user", "content": "Yes, explain it"})
+                with st.spinner("Limon is thinking..."):
+                    explain_msgs = [
+                        {
+                            "role": "user",
+                            "content": (
+                                f"Briefly explain this in a friendly way: {pending}. "
+                                "After explaining, say: Now, back to OS! What would you like to explore? 📘"
+                            ),
+                        }
+                    ]
+                    response_text = aria_respond(
+                        "You are a helpful and concise assistant.", explain_msgs
+                    )
+                st.session_state.messages.append({"role": "assistant", "content": response_text})
+                st.rerun()
+        with col2:
+            if st.button("❌ No, continue the course", use_container_width=True):
+                st.session_state.pop("pending_off_topic", None)
+                st.session_state.messages.append({"role": "user", "content": "No, continue the course"})
+                st.session_state.messages.append(
+                    {"role": "assistant", "content": "Got it! Let's stay on track. 📘 What OS topic would you like to explore?"}
+                )
+                st.rerun()
+
+    pending = bool(st.session_state.get("pending_off_topic"))
+    if user_input := st.chat_input(
+        "Ask Limon anything about Operating Systems...", disabled=pending
+    ):
         st.session_state.messages.append({"role": "user", "content": user_input})
         with st.chat_message("user"):
             st.markdown(user_input)
 
         with st.chat_message("assistant", avatar="📘"):
             with st.spinner("Limon is thinking..."):
-                response_text = aria_respond(system_prompt, st.session_state.messages)
+                if not is_on_topic(user_input):
+                    st.session_state["pending_off_topic"] = user_input
+                    response_text = OFF_TOPIC_MSG.format(topic=_short_label(user_input))
+                else:
+                    st.session_state.pop("pending_off_topic", None)
+                    response_text = aria_respond(system_prompt, st.session_state.messages)
             clean, tag_name, tag_args = parse_visual_tag(response_text)
             st.markdown(clean)
             display_visual(tag_name, tag_args)
 
         st.session_state.messages.append({"role": "assistant", "content": response_text})
+        st.rerun()
 
 
 if __name__ == "__main__":
