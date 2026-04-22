@@ -107,14 +107,35 @@ def main() -> None:
 
     system_prompt = load_system_prompt()
 
+    if st.session_state.get("show_farewell"):
+        st.session_state.pop("show_farewell")
+        saved = load_progress()
+        farewell_msgs = (saved or []) + [{"role": "user", "content": "[FINISH_SESSION]"}]
+        farewell_prompt = (
+            "The user has just finished their session. Look at the conversation history "
+            "and write a warm farewell message that:\n"
+            "1. Says goodbye warmly\n"
+            "2. Lists the topics they covered today with checkmarks (✅)\n"
+            "3. Ends with: 'Would you like to continue from there, or is there something else "
+            "you\\'d like to explore? See you next time! 👋'"
+        )
+        farewell_text = aria_respond(farewell_prompt, farewell_msgs)
+        st.session_state.messages = [{"role": "assistant", "content": farewell_text}]
+
     with st.sidebar:
         st.markdown("### Session")
-        if st.button("Finish Session", type="primary", use_container_width=True):
+
+        if st.button("💾 Finish Session", type="primary", use_container_width=True):
             if st.session_state.get("messages"):
                 save_progress(st.session_state.messages)
-                st.success("Progress saved! See you next time.")
                 st.session_state.clear()
+                st.session_state["show_farewell"] = True
                 st.rerun()
+
+        if st.button("🔄 Start New Session", use_container_width=True):
+            PROGRESS_FILE.unlink(missing_ok=True)
+            st.session_state.clear()
+            st.rerun()
 
     if "messages" not in st.session_state:
         saved = load_progress()
