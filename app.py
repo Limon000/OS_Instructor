@@ -34,6 +34,49 @@ _CLASSIFIER_PROMPT = (
     "Message: {message}\n\nCategory:"
 )
 
+# Short, direct system prompts per mode — used instead of the full instructor.md
+# because small local models (7B) cannot follow complex 280-line prompts.
+_MODE_SYSTEM_PROMPTS = {
+    "A": (
+        "You are Limon, an expert Operating Systems instructor. "
+        "The user wants to learn about a specific OS topic. "
+        "When they name a topic, explain it with: "
+        "1) a clear overview, 2) detailed explanation with analogies, "
+        "3) a concrete example or pseudocode, 4) connections to related topics, "
+        "5) three quiz questions. "
+        "Be warm, structured, and educational. Never show a menu or greeting."
+    ),
+    "B": (
+        "You are Limon, an expert Operating Systems instructor. "
+        "The user wants to learn OS from scratch. "
+        "Create a week-by-week study roadmap covering: OS basics, processes, "
+        "CPU scheduling, synchronization, memory management, virtual memory, "
+        "file systems, I/O, security, and advanced topics. "
+        "Format it as Week 1 → Day 1: topic, Day 2: topic, etc. "
+        "Then ask which day they want to start. Never show a menu or greeting."
+    ),
+    "C": (
+        "You are Limon, an expert Operating Systems instructor. "
+        "The user has some prior OS knowledge. "
+        "Ask them exactly 5 diagnostic questions, one at a time, covering: "
+        "processes vs threads, Banker's Algorithm, thrashing, disk scheduling, page faults. "
+        "After all answers, classify their level as Beginner-Intermediate, Intermediate, or Advanced "
+        "and give a personalized study plan. Never show a menu or greeting."
+    ),
+}
+
+_GREETING_OPTIONS = [
+    ("[A]", "📖 [A] Ask me about any specific OS topic and I'll teach it deeply", "A"),
+    ("[B]", "🗺️ [B] Say 'Start from zero' for a full structured learning roadmap", "B"),
+    ("[C]", "🧪 [C] Say 'I have some knowledge' and I'll assess your level first", "C"),
+]
+
+_MODE_INIT_PAYLOAD = {
+    "A": "List all available OS topics from your course outline and ask the user which one they want to learn about.",
+    "B": "Immediately generate the full week-by-week learning roadmap following the BEGINNER LEARNING PATH PROTOCOL.",
+    "C": "Immediately begin the KNOWLEDGE ASSESSMENT PROTOCOL. Ask the user the 5 diagnostic questions now.",
+}
+
 
 def _short_label(text: str) -> str:
     words = text.split()
@@ -57,6 +100,22 @@ def classify_message(user_input: str) -> str:
         return "on_topic"
 
 
+def split_greeting(text: str) -> tuple[str, list, str]:
+    lines = text.split("\n")
+    header, footer, options = [], [], []
+    in_options = False
+    for line in lines:
+        matched = next(((lbl, mode) for key, lbl, mode in _GREETING_OPTIONS if key in line), None)
+        if matched:
+            in_options = True
+            options.append(matched)
+        elif in_options:
+            footer.append(line)
+        else:
+            header.append(line)
+    return "\n".join(header), options, "\n".join(footer)
+
+
 def parse_visual_tag(text: str) -> tuple[str, str, str]:
     match = _VISUAL_RE.search(text)
     if not match:
@@ -72,26 +131,28 @@ def load_system_prompt() -> str:
     return SYSTEM_PROMPT_PATH.read_text(encoding="utf-8")
 
 
-def save_progress(messages: list) -> None:
+def save_progress(messages: list, mode: str) -> None:
     data = {
         "last_session": datetime.now().isoformat(),
+        "mode": mode,
         "messages": messages,
     }
     PROGRESS_FILE.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
 
-def load_progress() -> list | None:
+def load_progress() -> tuple[list | None, str]:
     if not PROGRESS_FILE.exists():
-        return None
+        return None, ""
     try:
         data = json.loads(PROGRESS_FILE.read_text(encoding="utf-8"))
-        return data.get("messages")
+        return data.get("messages"), data.get("mode", "")
     except (json.JSONDecodeError, KeyError):
-        return None
+        return None, ""
 
 
-def aria_respond(system_prompt: str, messages: list) -> str:
-    ollama_messages = [{"role": "system", "content": system_prompt}] + messages
+def aria_respond(system_prompt: str, messages: list, mode: str = "") -> str:
+    active_prompt = _MODE_SYSTEM_PROMPTS.get(mode, system_prompt)
+    ollama_messages = [{"role": "system", "content": active_prompt}] + messages
     try:
         response = ollama.chat(model=MODEL, messages=ollama_messages)
         return response.message.content
@@ -116,10 +177,21 @@ def main() -> None:
     st.caption("Your Personal Operating System Instructor")
 
     system_prompt = load_system_prompt()
+    current_mode = st.session_state.get("current_mode", "")
+
+    # Handle greeting button click — enter selected mode
+    if mode_choice := st.session_state.pop("greeting_choice", None):
+        st.session_state["current_mode"] = mode_choice
+        current_mode = mode_choice
+        payload = _MODE_INIT_PAYLOAD[mode_choice]
+        fresh_msgs = [{"role": "user", "content": payload}]
+        response = aria_respond(system_prompt, fresh_msgs, mode=mode_choice)
+        st.session_state.messages.append({"role": "assistant", "content": response})
+        st.rerun()
 
     if st.session_state.get("show_farewell"):
         st.session_state.pop("show_farewell")
-        saved = load_progress()
+        saved, _ = load_progress()
         farewell_msgs = (saved or []) + [{"role": "user", "content": "[FINISH_SESSION]"}]
         farewell_prompt = (
             "The user has just finished their session. Look at the conversation history "
@@ -137,7 +209,7 @@ def main() -> None:
 
         if st.button("💾 Finish Session", type="primary", use_container_width=True):
             if st.session_state.get("messages"):
-                save_progress(st.session_state.messages)
+                save_progress(st.session_state.messages, current_mode)
                 st.session_state.clear()
                 st.session_state["show_farewell"] = True
                 st.rerun()
@@ -148,29 +220,48 @@ def main() -> None:
             st.rerun()
 
     if "messages" not in st.session_state:
-        saved = load_progress()
+        saved, saved_mode = load_progress()
         if saved:
             st.session_state.messages = saved
+            st.session_state["current_mode"] = saved_mode
+            current_mode = saved_mode
             resume_trigger = saved + [{"role": "user", "content": "[RESUME_SESSION]"}]
-            welcome_back = aria_respond(system_prompt, resume_trigger)
-            st.session_state.messages.append({"role": "user", "content": "[RESUME_SESSION]"})
+            welcome_back = aria_respond(system_prompt, resume_trigger, mode=saved_mode)
             st.session_state.messages.append({"role": "assistant", "content": welcome_back})
         else:
             st.session_state.messages = []
             greeting_trigger = [{"role": "user", "content": "Hello"}]
             greeting = aria_respond(system_prompt, greeting_trigger)
-            st.session_state.messages.append({"role": "user", "content": "Hello"})
             st.session_state.messages.append({"role": "assistant", "content": greeting})
 
-    hidden = {"Hello", "[RESUME_SESSION]"}
+    # Filter internal messages from display
+    hidden_prefixes = ("Hello", "[RESUME_SESSION]")
     display_messages = [
-        m for i, m in enumerate(st.session_state.messages)
-        if not (m["role"] == "user" and m["content"] in hidden and i < 2)
+        m for m in st.session_state.messages
+        if not (m["role"] == "user" and m["content"] in hidden_prefixes)
     ]
+
+    is_greeting_state = (
+        len(display_messages) == 1
+        and display_messages[0]["role"] == "assistant"
+        and not st.session_state.get("pending_off_topic")
+    )
+
     for msg in display_messages:
         with st.chat_message(msg["role"], avatar="📘" if msg["role"] == "assistant" else None):
             clean, tag_name, tag_args = parse_visual_tag(msg["content"])
-            st.markdown(clean)
+            if is_greeting_state and msg["role"] == "assistant":
+                header, options, footer = split_greeting(clean)
+                if header:
+                    st.markdown(header)
+                for label, mode_key in options:
+                    if st.button(label, use_container_width=True, key=f"opt_{mode_key}"):
+                        st.session_state["greeting_choice"] = mode_key
+                        st.rerun()
+                if footer:
+                    st.markdown(footer)
+            else:
+                st.markdown(clean)
             display_visual(tag_name, tag_args)
 
     # Yes / No buttons when an off-topic question is pending
@@ -220,7 +311,11 @@ def main() -> None:
                     response_text = OFF_TOPIC_MSG.format(topic=_short_label(user_input))
                 else:
                     st.session_state.pop("pending_off_topic", None)
-                    response_text = aria_respond(system_prompt, st.session_state.messages)
+                    response_text = aria_respond(
+                        system_prompt,
+                        st.session_state.messages,
+                        mode=st.session_state.get("current_mode", ""),
+                    )
             clean, tag_name, tag_args = parse_visual_tag(response_text)
             st.markdown(clean)
             display_visual(tag_name, tag_args)
