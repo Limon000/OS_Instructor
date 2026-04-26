@@ -22,11 +22,16 @@ OFF_TOPIC_MSG = (
 )
 
 _CLASSIFIER_PROMPT = (
-    "Answer only YES or NO — nothing else.\n"
-    "Is the following message related to Operating Systems (OS) topics such as "
-    "processes, threads, scheduling, memory management, file systems, I/O, "
-    "synchronization, virtualization, or OS security?\n\n"
-    "Message: {message}\n\nAnswer:"
+    "Classify the following message into exactly one category. "
+    "Answer only the category name — nothing else.\n\n"
+    "Categories:\n"
+    "- ON_TOPIC: related to Operating Systems (processes, threads, scheduling, "
+    "memory management, file systems, I/O, synchronization, virtualization, OS security)\n"
+    "- CASUAL: social or conversational messages — greetings, thanks, affirmations, "
+    "mood expressions, small talk, transitions between topics\n"
+    "- OFF_TOPIC: unrelated to OS — general coding, math, history, creative writing, "
+    "personal advice\n\n"
+    "Message: {message}\n\nCategory:"
 )
 
 
@@ -36,15 +41,20 @@ def _short_label(text: str) -> str:
     return label + ("…" if len(words) > 6 else "")
 
 
-def is_on_topic(user_input: str) -> bool:
+def classify_message(user_input: str) -> str:
     try:
         resp = ollama.chat(
             model=MODEL,
             messages=[{"role": "user", "content": _CLASSIFIER_PROMPT.format(message=user_input)}],
         )
-        return resp.message.content.strip().upper().startswith("Y")
+        result = resp.message.content.strip().upper()
+        if result.startswith("CASUAL"):
+            return "casual"
+        if result.startswith("OFF_TOPIC") or result.startswith("NO"):
+            return "off_topic"
+        return "on_topic"
     except Exception:
-        return True
+        return "on_topic"
 
 
 def parse_visual_tag(text: str) -> tuple[str, str, str]:
@@ -204,7 +214,8 @@ def main() -> None:
 
         with st.chat_message("assistant", avatar="📘"):
             with st.spinner("Limon is thinking..."):
-                if not is_on_topic(user_input):
+                classification = classify_message(user_input)
+                if classification == "off_topic":
                     st.session_state["pending_off_topic"] = user_input
                     response_text = OFF_TOPIC_MSG.format(topic=_short_label(user_input))
                 else:
