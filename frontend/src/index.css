@@ -35,7 +35,11 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* Chat view needs fixed-height; home page (.home-view) scrolls independently */
 #root { height: 100vh; overflow: hidden; }
+#root:has(.home-view) { overflow: auto; }
+
+.home-view { min-height: 100vh; }
 
 /* ── Screen-reader only utility ────────────────────────────────────────────── */
 .sr-only {
