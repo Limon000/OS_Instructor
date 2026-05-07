@@ -83,34 +83,72 @@ export default function ChatWindow({ viz }: Props) {
           role="alert"
           style={{
             margin: "12px 0 0",
-            padding: "10px 14px",
+            padding: "14px 16px",
             borderRadius: "var(--radius-btn)",
             background: "var(--color-error-bg)",
             border: "1px solid var(--color-error-border)",
             color: "var(--color-error-text)",
             fontSize: 13,
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            gap: 8,
           }}
         >
-          <span>⚠️ {error}</span>
-          <button
-            onClick={clearError}
-            aria-label="Dismiss error"
-            style={{
-              background: "none",
-              border: "none",
-              color: "var(--color-error-text)",
-              cursor: "pointer",
-              fontSize: 16,
-              lineHeight: 1,
-              padding: 0,
-            }}
-          >
-            ✕
-          </button>
+          {error === "BACKEND_DOWN" ? (
+            <>
+              <div style={{ fontWeight: 700, marginBottom: 6 }}>
+                ⚠️ Backend server is not running
+              </div>
+              <div style={{ marginBottom: 10, color: "#555" }}>
+                Start the FastAPI server, then click Retry:
+              </div>
+              <pre
+                style={{
+                  background: "#1e1e1e",
+                  color: "#d4d4d4",
+                  borderRadius: 6,
+                  padding: "8px 12px",
+                  fontSize: 12,
+                  margin: "0 0 12px",
+                  overflowX: "auto",
+                  fontFamily: "var(--font-mono)",
+                }}
+              >
+                {`cd OS_Instructor\nPYTHONPATH=. uvicorn backend.main:app --reload --port 8000`}
+              </pre>
+              <button
+                onClick={() => window.location.reload()}
+                style={{
+                  padding: "7px 16px",
+                  background: "var(--color-primary)",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: 6,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                🔄 Retry
+              </button>
+            </>
+          ) : (
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+              <span>⚠️ {error}</span>
+              <button
+                onClick={clearError}
+                aria-label="Dismiss error"
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "var(--color-error-text)",
+                  cursor: "pointer",
+                  fontSize: 16,
+                  lineHeight: 1,
+                  padding: 0,
+                }}
+              >
+                ✕
+              </button>
+            </div>
+          )}
         </div>
       )}
 

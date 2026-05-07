@@ -80,7 +80,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         setIsGreetingState(greeting.is_greeting_state);
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
-        if (msg === "OLLAMA_UNREACHABLE") {
+        if (msg === "BACKEND_DOWN") {
+          setError("BACKEND_DOWN");
+        } else if (msg === "OLLAMA_UNREACHABLE") {
           setError("Ollama is not running. Start it with `ollama serve` and refresh.");
         } else {
           setError(msg);

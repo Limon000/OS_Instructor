@@ -17,6 +17,7 @@ async function post<T>(path: string, body?: unknown): Promise<T> {
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
   if (!res.ok) {
+    if (res.status === 502 || res.status === 0) throw new Error("BACKEND_DOWN");
     const text = await res.text().catch(() => res.statusText);
     throw new Error(`API ${res.status}: ${text}`);
   }
@@ -26,6 +27,7 @@ async function post<T>(path: string, body?: unknown): Promise<T> {
 async function get<T>(path: string): Promise<T> {
   const res = await fetch(`${BASE}${path}`);
   if (!res.ok) {
+    if (res.status === 502 || res.status === 0) throw new Error("BACKEND_DOWN");
     const text = await res.text().catch(() => res.statusText);
     if (res.status === 503) throw new Error("OLLAMA_UNREACHABLE");
     throw new Error(`API ${res.status}: ${text}`);
@@ -70,6 +72,7 @@ export const api = {
     });
 
     if (!res.ok || !res.body) {
+      if (res.status === 502 || res.status === 0) throw new Error("BACKEND_DOWN");
       const text = await res.text().catch(() => res.statusText);
       if (res.status === 503) throw new Error("OLLAMA_UNREACHABLE");
       throw new Error(`API ${res.status}: ${text}`);
