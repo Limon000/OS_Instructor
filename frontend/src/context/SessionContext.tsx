@@ -7,6 +7,7 @@ import React, {
   useState,
 } from "react";
 import { api } from "../api/client";
+import { getNextTopicId, getTopicById } from "../data/courseOutline";
 import type { Message, Mode } from "../types";
 
 function getOrCreateSessionId(): string {
@@ -34,6 +35,16 @@ interface SessionState {
   newSession: () => Promise<void>;
   confirmOffTopicYes: () => Promise<void>;
   confirmOffTopicNo: () => void;
+
+  // ── Mode B ──────────────────────────────────────────────────────────────────
+  currentTopicId: string;
+  completedTopics: string[];
+  topicContent: Message | null;
+  isTeachingTopic: boolean;
+  topicQAMessages: Message[];
+  goToTopic: (id: string) => Promise<void>;
+  moveToNextTopic: () => void;
+  sendTopicQuestion: (text: string) => Promise<void>;
 }
 
 export const SessionContext = createContext<SessionState | null>(null);
@@ -46,12 +57,30 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [pendingOffTopic, setPendingOffTopic] = useState<string | null>(null);
   const [isThinking, setIsThinking] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Mode B state
+  const [currentTopicId, setCurrentTopicId] = useState("");
+  const [completedTopics, setCompletedTopics] = useState<string[]>([]);
+  const [topicContent, setTopicContent] = useState<Message | null>(null);
+  const [isTeachingTopic, setIsTeachingTopic] = useState(false);
+  const [topicQAMessages, setTopicQAMessages] = useState<Message[]>([]);
+
   const initialized = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
+  const teachAbortRef = useRef<AbortController | null>(null);
+  const qaAbortRef = useRef<AbortController | null>(null);
+
+  // Keep refs in sync for use inside callbacks without causing re-creation
+  const completedTopicsRef = useRef(completedTopics);
+  const messagesRef = useRef(messages);
+  const modeRef = useRef(mode);
+  useEffect(() => { completedTopicsRef.current = completedTopics; }, [completedTopics]);
+  useEffect(() => { messagesRef.current = messages; }, [messages]);
+  useEffect(() => { modeRef.current = mode; }, [mode]);
 
   const clearError = useCallback(() => setError(null), []);
 
-  // ── initial load ────────────────────────────────────────────────────────────
+  // ── initial load ─────────────────────────────────────────────────────────────
   useEffect(() => {
     if (initialized.current) return;
     initialized.current = true;
@@ -60,7 +89,10 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       setIsThinking(true);
       try {
         const session = await api.getSession(sessionId);
-        if (session.mode) setMode(session.mode);
+        // Don't restore mode — user must always pick a mode on the chat page.
+        // Progress (completedTopics, currentTopicId) IS restored so Mode B resumes seamlessly.
+        if (session.completed_topics?.length) setCompletedTopics(session.completed_topics);
+        if (session.current_topic_id) setCurrentTopicId(session.current_topic_id);
 
         const greeting = await api.greeting(sessionId);
         const greetingMsg: Message = {
@@ -68,16 +100,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
           content: greeting.content,
           visual: greeting.visual,
         };
-        if (session.messages.length > 0) {
-          const restored: Message[] = session.messages.map((m) => ({
-            role: m.role,
-            content: m.content,
-          }));
-          setMessages([...restored, greetingMsg]);
-        } else {
-          setMessages([greetingMsg]);
-        }
-        setIsGreetingState(greeting.is_greeting_state);
+        setMessages([greetingMsg]);
+        // Always start in greeting/mode-selection state so the 3 mode cards are always shown.
+        setIsGreetingState(true);
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         if (msg === "BACKEND_DOWN") {
@@ -93,7 +118,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     })();
   }, [sessionId]);
 
-  // ── streaming sendMessage ───────────────────────────────────────────────────
+  // ── streaming sendMessage ────────────────────────────────────────────────────
   const sendMessage = useCallback(
     async (text: string) => {
       const userMsg: Message = { role: "user", content: text };
@@ -108,68 +133,56 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       abortRef.current = abort;
 
       try {
-        await api.chatStream(
-          sessionId,
-          next,
-          mode,
-          text,
-          null,
-          (event) => {
-            if (event.type === "token") {
-              setMessages((prev) => {
-                const updated = [...prev];
-                const last = updated[updated.length - 1];
-                updated[updated.length - 1] = {
-                  ...last,
-                  content: last.content + (event.delta ?? ""),
-                };
-                return updated;
-              });
-            } else if (event.type === "done") {
-              setMessages((prev) => {
-                const updated = [...prev];
-                updated[updated.length - 1] = {
-                  role: "assistant",
-                  content: event.content ?? "",
-                  visual: event.visual ?? null,
-                  isStreaming: false,
-                };
-                return updated;
-              });
-            } else if (event.type === "offtopic") {
-              setPendingOffTopic(text);
-              setMessages((prev) => {
-                const updated = [...prev];
-                updated[updated.length - 1] = {
-                  role: "assistant",
-                  content: event.content ?? "",
-                  isStreaming: false,
-                };
-                return updated;
-              });
-            } else if (event.type === "error") {
-              const errMsg = event.message ?? "Unknown error";
-              setError(errMsg);
-              setMessages((prev) => {
-                const updated = [...prev];
-                updated[updated.length - 1] = {
-                  ...updated[updated.length - 1],
-                  content: `⚠️ ${errMsg}`,
-                  isStreaming: false,
-                };
-                return updated;
-              });
-            }
-          },
-          abort.signal
-        );
+        await api.chatStream(sessionId, next, mode, text, null, (event) => {
+          if (event.type === "token") {
+            setMessages((prev) => {
+              const updated = [...prev];
+              const last = updated[updated.length - 1];
+              updated[updated.length - 1] = { ...last, content: last.content + (event.delta ?? "") };
+              return updated;
+            });
+          } else if (event.type === "done") {
+            setMessages((prev) => {
+              const updated = [...prev];
+              updated[updated.length - 1] = {
+                role: "assistant",
+                content: event.content ?? "",
+                visual: event.visual ?? null,
+                isStreaming: false,
+              };
+              return updated;
+            });
+          } else if (event.type === "offtopic") {
+            setPendingOffTopic(text);
+            setMessages((prev) => {
+              const updated = [...prev];
+              updated[updated.length - 1] = {
+                role: "assistant",
+                content: event.content ?? "",
+                isStreaming: false,
+              };
+              return updated;
+            });
+          } else if (event.type === "error") {
+            const errMsg = event.message ?? "Unknown error";
+            setError(errMsg);
+            setMessages((prev) => {
+              const updated = [...prev];
+              updated[updated.length - 1] = {
+                ...updated[updated.length - 1],
+                content: `⚠️ ${errMsg}`,
+                isStreaming: false,
+              };
+              return updated;
+            });
+          }
+        }, abort.signal);
       } catch (e) {
         if ((e as Error).name === "AbortError") return;
         const msg = e instanceof Error ? e.message : String(e);
-        const errMsg =
-          msg === "OLLAMA_UNREACHABLE"
-            ? "Ollama is not running. Start it with `ollama serve` and refresh."
-            : msg;
+        const errMsg = msg === "OLLAMA_UNREACHABLE"
+          ? "Ollama is not running. Start it with `ollama serve` and refresh."
+          : msg;
         setError(errMsg);
         setMessages((prev) => {
           const updated = [...prev];
@@ -187,7 +200,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     [messages, mode, sessionId]
   );
 
-  // ── mode selection ──────────────────────────────────────────────────────────
+  // ── mode selection ───────────────────────────────────────────────────────────
   const selectMode = useCallback(
     async (selectedMode: Mode) => {
       setIsThinking(true);
@@ -209,7 +222,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     [messages, sessionId]
   );
 
-  // ── finish session ──────────────────────────────────────────────────────────
+  // ── finish session ───────────────────────────────────────────────────────────
   const finishSession = useCallback(async () => {
     setIsThinking(true);
     setError(null);
@@ -225,16 +238,14 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     }
   }, [messages, mode, sessionId]);
 
-  // ── new session ─────────────────────────────────────────────────────────────
+  // ── new session ──────────────────────────────────────────────────────────────
   const newSession = useCallback(async () => {
     await api.clearSession(sessionId);
     setIsThinking(true);
     setError(null);
     try {
-      // Generate a new session ID for the new session
       const newId = crypto.randomUUID();
       sessionStorage.setItem("os_session_id", newId);
-      // Reload so the new ID is picked up cleanly
       window.location.reload();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -242,7 +253,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     }
   }, [sessionId]);
 
-  // ── off-topic yes/no ────────────────────────────────────────────────────────
+  // ── off-topic yes/no ─────────────────────────────────────────────────────────
   const confirmOffTopicYes = useCallback(async () => {
     if (!pendingOffTopic) return;
     const original = pendingOffTopic;
@@ -259,38 +270,27 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     abortRef.current = abort;
 
     try {
-      await api.chatStream(
-        sessionId,
-        next,
-        mode,
-        "Yes, explain it",
-        original,
-        (event) => {
-          if (event.type === "token") {
-            setMessages((prev) => {
-              const updated = [...prev];
-              const last = updated[updated.length - 1];
-              updated[updated.length - 1] = {
-                ...last,
-                content: last.content + (event.delta ?? ""),
-              };
-              return updated;
-            });
-          } else if (event.type === "done") {
-            setMessages((prev) => {
-              const updated = [...prev];
-              updated[updated.length - 1] = {
-                role: "assistant",
-                content: event.content ?? "",
-                visual: event.visual ?? null,
-                isStreaming: false,
-              };
-              return updated;
-            });
-          }
-        },
-        abort.signal
-      );
+      await api.chatStream(sessionId, next, mode, "Yes, explain it", original, (event) => {
+        if (event.type === "token") {
+          setMessages((prev) => {
+            const updated = [...prev];
+            const last = updated[updated.length - 1];
+            updated[updated.length - 1] = { ...last, content: last.content + (event.delta ?? "") };
+            return updated;
+          });
+        } else if (event.type === "done") {
+          setMessages((prev) => {
+            const updated = [...prev];
+            updated[updated.length - 1] = {
+              role: "assistant",
+              content: event.content ?? "",
+              visual: event.visual ?? null,
+              isStreaming: false,
+            };
+            return updated;
+          });
+        }
+      }, abort.signal);
     } catch (e) {
       if ((e as Error).name !== "AbortError") {
         setError(e instanceof Error ? e.message : String(e));
@@ -312,6 +312,158 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     ]);
   }, []);
 
+  // ── Mode B: go to topic ──────────────────────────────────────────────────────
+  const goToTopic = useCallback(
+    async (topicId: string) => {
+      const topic = getTopicById(topicId);
+      if (!topic) return;
+
+      teachAbortRef.current?.abort();
+      const abort = new AbortController();
+      teachAbortRef.current = abort;
+
+      setCurrentTopicId(topicId);
+      setTopicContent(null);
+      setTopicQAMessages([]);
+      setIsTeachingTopic(true);
+      setError(null);
+
+      try {
+        await api.teachTopic(sessionId, topicId, topic.title, (event) => {
+          if (event.type === "token") {
+            setTopicContent((prev) => ({
+              role: "assistant",
+              content: (prev?.content ?? "") + (event.delta ?? ""),
+              isStreaming: true,
+            }));
+          } else if (event.type === "done") {
+            setTopicContent({
+              role: "assistant",
+              content: event.content ?? "",
+              visual: event.visual ?? null,
+              isStreaming: false,
+            });
+            setIsTeachingTopic(false);
+            // persist current topic to session
+            api.saveSession(
+              sessionId,
+              messagesRef.current,
+              modeRef.current,
+              completedTopicsRef.current,
+              topicId
+            ).catch(() => {/* non-critical */});
+          } else if (event.type === "error") {
+            setError(event.message ?? "Error loading topic");
+            setIsTeachingTopic(false);
+          }
+        }, abort.signal);
+      } catch (e) {
+        if ((e as Error).name !== "AbortError") {
+          setError(e instanceof Error ? e.message : String(e));
+          setIsTeachingTopic(false);
+        }
+      }
+    },
+    [sessionId]
+  );
+
+  // ── Mode B: move to next topic ───────────────────────────────────────────────
+  const moveToNextTopic = useCallback(() => {
+    if (!currentTopicId) return;
+
+    const newCompleted = completedTopics.includes(currentTopicId)
+      ? completedTopics
+      : [...completedTopics, currentTopicId];
+    setCompletedTopics(newCompleted);
+
+    const nextId = getNextTopicId(currentTopicId);
+    if (nextId) {
+      api.saveSession(sessionId, messagesRef.current, modeRef.current, newCompleted, nextId)
+        .catch(() => {/* non-critical */});
+      goToTopic(nextId);
+    } else {
+      // All 46 topics complete
+      api.saveSession(sessionId, messagesRef.current, modeRef.current, newCompleted, "")
+        .catch(() => {/* non-critical */});
+      setCurrentTopicId("");
+      setTopicContent({
+        role: "assistant",
+        content:
+          "🎉 **Congratulations!** You've completed all 10 modules of the OS course!\n\n" +
+          "You now have a comprehensive understanding of Operating Systems from the ground up. " +
+          "Keep exploring and applying these concepts — you're well-prepared for exams, interviews, " +
+          "and real-world systems work! 🏆",
+        isStreaming: false,
+      });
+      setTopicQAMessages([]);
+    }
+  }, [currentTopicId, completedTopics, sessionId, goToTopic]);
+
+  // ── Mode B: send Q&A question for current topic ──────────────────────────────
+  const sendTopicQuestion = useCallback(
+    async (text: string) => {
+      if (!topicContent) return;
+
+      // Build conversation: topic teaching as first assistant msg + Q&A history + new user msg
+      const contextMsg: Message = {
+        role: "assistant",
+        content: topicContent.content,
+      };
+      const userMsg: Message = { role: "user", content: text };
+      const streamingMsg: Message = { role: "assistant", content: "", isStreaming: true };
+
+      const history = [contextMsg, ...topicQAMessages, userMsg];
+      setTopicQAMessages((prev) => [...prev, userMsg, streamingMsg]);
+      setIsThinking(true);
+
+      qaAbortRef.current?.abort();
+      const abort = new AbortController();
+      qaAbortRef.current = abort;
+
+      try {
+        await api.chatStream(sessionId, history, "B", text, null, (event) => {
+          if (event.type === "token") {
+            setTopicQAMessages((prev) => {
+              const updated = [...prev];
+              const last = updated[updated.length - 1];
+              updated[updated.length - 1] = { ...last, content: last.content + (event.delta ?? "") };
+              return updated;
+            });
+          } else if (event.type === "done") {
+            setTopicQAMessages((prev) => {
+              const updated = [...prev];
+              updated[updated.length - 1] = {
+                role: "assistant",
+                content: event.content ?? "",
+                visual: event.visual ?? null,
+                isStreaming: false,
+              };
+              return updated;
+            });
+          } else if (event.type === "error") {
+            setError(event.message ?? "Unknown error");
+            setTopicQAMessages((prev) => {
+              const updated = [...prev];
+              updated[updated.length - 1] = {
+                ...updated[updated.length - 1],
+                content: `⚠️ ${event.message ?? "Unknown error"}`,
+                isStreaming: false,
+              };
+              return updated;
+            });
+          }
+        }, abort.signal);
+      } catch (e) {
+        if ((e as Error).name !== "AbortError") {
+          setError(e instanceof Error ? e.message : String(e));
+        }
+      } finally {
+        setIsThinking(false);
+      }
+    },
+    [topicContent, topicQAMessages, sessionId]
+  );
+
   return (
     <SessionContext.Provider
       value={{
@@ -329,6 +481,15 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         newSession,
         confirmOffTopicYes,
         confirmOffTopicNo,
+        // Mode B
+        currentTopicId,
+        completedTopics,
+        topicContent,
+        isTeachingTopic,
+        topicQAMessages,
+        goToTopic,
+        moveToNextTopic,
+        sendTopicQuestion,
       }}
     >
       {children}

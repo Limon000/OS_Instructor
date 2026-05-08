@@ -31,6 +31,8 @@ export interface SessionData {
   messages: { role: Role; content: string }[];
   mode: Mode;
   last_session: string | null;
+  completed_topics: string[];
+  current_topic_id: string;
 }
 
 export interface FinishSessionResponse {

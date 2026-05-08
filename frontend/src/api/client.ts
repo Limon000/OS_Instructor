@@ -44,11 +44,40 @@ function serializeMessages(msgs: Message[]) {
   return msgs.map(({ role, content }) => ({ role, content }));
 }
 
+/** Shared SSE reader — calls onEvent for each parsed data line. */
+async function readSSEStream(
+  res: Response,
+  onEvent: (event: ChatStreamEvent) => void
+): Promise<void> {
+  const reader = res.body!.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+
+    for (const line of lines) {
+      if (!line.startsWith("data: ")) continue;
+      const raw = line.slice(6).trim();
+      if (!raw || raw === "[DONE]") continue;
+      try {
+        onEvent(JSON.parse(raw) as ChatStreamEvent);
+      } catch {
+        // malformed SSE line — skip
+      }
+    }
+  }
+}
+
 export const api = {
   greeting: (sessionId: string) =>
     post<GreetingResponse>(`/api/greeting?session_id=${encodeURIComponent(sessionId)}`),
 
-  /** Opens a streaming POST and calls onEvent for each parsed SSE event. */
   chatStream: async (
     sessionId: string,
     messages: Message[],
@@ -78,29 +107,35 @@ export const api = {
       throw new Error(`API ${res.status}: ${text}`);
     }
 
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
+    await readSSEStream(res, onEvent);
+  },
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
+  /** Stream structured teaching content for one Mode B topic. */
+  teachTopic: async (
+    sessionId: string,
+    topicId: string,
+    topicTitle: string,
+    onEvent: (event: ChatStreamEvent) => void,
+    signal?: AbortSignal
+  ): Promise<void> => {
+    const res = await fetch(`${BASE}/api/mode-b/teach-topic`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        session_id: sessionId,
+        topic_id: topicId,
+        topic_title: topicTitle,
+      }),
+      signal,
+    });
 
-      const lines = buffer.split("\n");
-      buffer = lines.pop() ?? "";
-
-      for (const line of lines) {
-        if (!line.startsWith("data: ")) continue;
-        const raw = line.slice(6).trim();
-        if (!raw || raw === "[DONE]") continue;
-        try {
-          onEvent(JSON.parse(raw) as ChatStreamEvent);
-        } catch {
-          // malformed SSE line — skip
-        }
-      }
+    if (!res.ok || !res.body) {
+      if (res.status === 502 || res.status === 0) throw new Error("BACKEND_DOWN");
+      const text = await res.text().catch(() => res.statusText);
+      throw new Error(`API ${res.status}: ${text}`);
     }
+
+    await readSSEStream(res, onEvent);
   },
 
   modeSelect: (sessionId: string, mode: Mode, messages: Message[]) =>
@@ -113,11 +148,19 @@ export const api = {
   getSession: (sessionId: string) =>
     get<SessionData>(`/api/session?session_id=${encodeURIComponent(sessionId)}`),
 
-  saveSession: (sessionId: string, messages: Message[], mode: Mode) =>
+  saveSession: (
+    sessionId: string,
+    messages: Message[],
+    mode: Mode,
+    completedTopics: string[] = [],
+    currentTopicId: string = ""
+  ) =>
     post("/api/session/save", {
       session_id: sessionId,
       messages: serializeMessages(messages),
       mode,
+      completed_topics: completedTopics,
+      current_topic_id: currentTopicId,
     }),
 
   clearSession: (sessionId: string) =>
