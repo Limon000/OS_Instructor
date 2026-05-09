@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { useSession } from "../context/SessionContext";
 import type { Mode } from "../types";
 
@@ -25,12 +26,20 @@ const MODES: { key: Mode; icon: string; title: string; desc: string }[] = [
 
 export default function ModeSelector() {
   const { selectMode, isThinking } = useSession();
+  const navigate = useNavigate();
   const firstCardRef = useRef<HTMLButtonElement>(null);
 
-  // Focus the first card when it appears so keyboard users can navigate immediately
   useEffect(() => {
     firstCardRef.current?.focus();
   }, []);
+
+  const handleSelect = (key: Mode) => {
+    if (key === "B") {
+      navigate("/mode-b");
+    } else {
+      selectMode(key);
+    }
+  };
 
   return (
     <div
@@ -42,7 +51,7 @@ export default function ModeSelector() {
         <button
           key={key}
           ref={idx === 0 ? firstCardRef : undefined}
-          onClick={() => selectMode(key)}
+          onClick={() => handleSelect(key)}
           disabled={isThinking}
           aria-label={`${title}: ${desc}`}
           style={{

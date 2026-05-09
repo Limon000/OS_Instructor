@@ -49,7 +49,13 @@ interface SessionState {
 
 export const SessionContext = createContext<SessionState | null>(null);
 
-export function SessionProvider({ children }: { children: React.ReactNode }) {
+export function SessionProvider({
+  children,
+  autoMode,
+}: {
+  children: React.ReactNode;
+  autoMode?: Mode;
+}) {
   const sessionId = useRef(getOrCreateSessionId()).current;
   const [messages, setMessages] = useState<Message[]>([]);
   const [mode, setMode] = useState<Mode>("");
@@ -89,7 +95,6 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       setIsThinking(true);
       try {
         const session = await api.getSession(sessionId);
-        // Don't restore mode — user must always pick a mode on the chat page.
         // Progress (completedTopics, currentTopicId) IS restored so Mode B resumes seamlessly.
         if (session.completed_topics?.length) setCompletedTopics(session.completed_topics);
         if (session.current_topic_id) setCurrentTopicId(session.current_topic_id);
@@ -100,9 +105,22 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
           content: greeting.content,
           visual: greeting.visual,
         };
-        setMessages([greetingMsg]);
-        // Always start in greeting/mode-selection state so the 3 mode cards are always shown.
-        setIsGreetingState(true);
+
+        if (autoMode) {
+          // Auto-select the mode — user already chose it on ModeSelectPage.
+          const modeRes = await api.modeSelect(sessionId, autoMode as "A" | "B" | "C", [greetingMsg]);
+          setMode(autoMode);
+          setIsGreetingState(false);
+          if (autoMode !== "B") {
+            // A/C: user already chose mode on ModeSelectPage — skip generic greeting
+            setMessages([{ role: "assistant", content: modeRes.content, visual: modeRes.visual }]);
+          }
+          // B: ModeBPage manages its own UI; no messages needed here
+        } else {
+          // No pre-selection — show greeting and mode-selector cards
+          setMessages([greetingMsg]);
+          setIsGreetingState(true);
+        }
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         if (msg === "BACKEND_DOWN") {
