@@ -2,27 +2,38 @@ import { useEffect, useState } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import type { Viz } from "@viz-js/viz";
 import { SessionProvider } from "./context/SessionContext";
-import { useSession } from "./context/SessionContext";
 import ErrorBoundary from "./components/ErrorBoundary";
-import AppShell from "./components/AppShell";
 import HomePage from "./pages/HomePage";
+import ModeSelectPage from "./pages/ModeSelectPage";
+import ModeAPage from "./pages/ModeAPage";
 import ModeBPage from "./pages/ModeBPage";
+import ModeCPage from "./pages/ModeCPage";
 
-/** Renders either the Coursera-style Mode B layout or the standard chat shell */
-function ChatContent({ viz }: { viz: Viz | null }) {
-  const { mode, isGreetingState } = useSession();
-
-  if (mode === "B" && !isGreetingState) {
-    return <ModeBPage viz={viz} />;
-  }
-  return <AppShell viz={viz} />;
-}
-
-function ChatPage({ viz }: { viz: Viz | null }) {
+function ModeALearningPage({ viz }: { viz: Viz | null }) {
   return (
     <ErrorBoundary>
-      <SessionProvider>
-        <ChatContent viz={viz} />
+      <SessionProvider autoMode="A">
+        <ModeAPage viz={viz} />
+      </SessionProvider>
+    </ErrorBoundary>
+  );
+}
+
+function ModeBLearningPage({ viz }: { viz: Viz | null }) {
+  return (
+    <ErrorBoundary>
+      <SessionProvider autoMode="B">
+        <ModeBPage viz={viz} />
+      </SessionProvider>
+    </ErrorBoundary>
+  );
+}
+
+function ModeCLearningPage({ viz }: { viz: Viz | null }) {
+  return (
+    <ErrorBoundary>
+      <SessionProvider autoMode="C">
+        <ModeCPage viz={viz} />
       </SessionProvider>
     </ErrorBoundary>
   );
@@ -51,7 +62,10 @@ export default function App() {
             </ErrorBoundary>
           }
         />
-        <Route path="/chat" element={<ChatPage viz={viz} />} />
+        <Route path="/select" element={<ModeSelectPage />} />
+        <Route path="/mode-a" element={<ModeALearningPage viz={viz} />} />
+        <Route path="/mode-b" element={<ModeBLearningPage viz={viz} />} />
+        <Route path="/mode-c" element={<ModeCLearningPage viz={viz} />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

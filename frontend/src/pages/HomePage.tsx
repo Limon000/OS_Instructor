@@ -301,7 +301,7 @@ type Tab = "description" | "content" | "howto";
 
 export default function HomePage() {
   const navigate = useNavigate();
-  const onStart = () => navigate("/chat");
+  const onStart = () => navigate("/select");
   const [tab, setTab] = useState<Tab>("description");
 
   return (

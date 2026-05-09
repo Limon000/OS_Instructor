@@ -18,7 +18,7 @@ SYSTEM_PROMPT_PATH = REPO_ROOT / ".claude" / "instructor.md"
 _VISUAL_RE = re.compile(r"\[VISUAL:([a-z_]+)(?::([^\]]*))?\]", re.IGNORECASE)
 
 _MODE_INIT_PAYLOAD = {
-    "A": "List all available OS topics from your course outline and ask the user which one they want to learn about.",
+    "A": "Greet the user briefly. Say exactly: '👋 Hello! I'm Limon, your Operating System course instructor.\nHow can I help you today?' — nothing else.",
     "B": "Immediately generate the full week-by-week learning roadmap following the BEGINNER LEARNING PATH PROTOCOL.",
     "C": "Immediately begin the KNOWLEDGE ASSESSMENT PROTOCOL. Ask the user the 5 diagnostic questions now.",
 }
