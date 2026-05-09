@@ -51,12 +51,16 @@ class SessionData(BaseModel):
     messages: list[Message] = []
     mode: Literal["A", "B", "C", ""] = ""
     last_session: Optional[str] = None
+    completed_topics: list[str] = []
+    current_topic_id: str = ""
 
 
 class SaveSessionRequest(BaseModel):
     session_id: str
     messages: list[Message]
     mode: Literal["A", "B", "C", ""] = ""
+    completed_topics: list[str] = []
+    current_topic_id: str = ""
 
 
 class FinishSessionRequest(BaseModel):
@@ -68,6 +72,14 @@ class FinishSessionRequest(BaseModel):
 class FinishSessionResponse(BaseModel):
     farewell: str
     visual: Optional[VisualPayload] = None
+
+
+# ── Mode B ───────────────────────────────────────────────────────────────────
+
+class TeachTopicRequest(BaseModel):
+    session_id: str
+    topic_id: str    # e.g. "1.1"
+    topic_title: str # e.g. "What is an OS? Goals & Functions"
 
 
 # ── Visual ───────────────────────────────────────────────────────────────────

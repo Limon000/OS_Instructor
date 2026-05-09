@@ -1,0 +1,18 @@
+{
+  "last_session": "2026-05-08T21:18:23.581921",
+  "mode": "B",
+  "messages": [
+    {
+      "role": "assistant",
+      "content": "\ud83d\udc4b Hello! I'm Limon, your Operating System course instructor.\nI can help you in a few ways:\n\n\ud83d\udcd6 [A] Ask me about any specific OS topic and I'll teach it deeply\n\n\ud83d\uddfa\ufe0f [B] Say 'Start from zero' for a full structured learning roadmap\n\n\ud83e\uddea [C] Say 'I have some knowledge' and I'll assess your level first\n\nWhat would you like to do?"
+    },
+    {
+      "role": "assistant",
+      "content": "Week 1:\nDay 1: Introduction to Operating Systems - Basic Concepts and History  \nDay 2: Process Management and Scheduling Basics  \nDay 3: CPU Scheduling Algorithms (FIFO, RR, SJF)  \nDay 4: Inter-Process Communication (IPC) Methods  \n\nWeek 2:\nDay 5: Synchronization Techniques (Mutexes, Semaphores)  \nDay 6: Deadlock Detection and Prevention  \nDay 7: Introduction to Memory Management - Virtual vs. Physical Memory  \nDay 8: Page Replacement Algorithms  \n\nWeek 3:\nDay 9: Virtual Memory Systems and Paging  \nDay 10: Virtual Addressing and Segmentation  \nDay 11: File System Basics - Directory Structure, Inodes  \nDay 12: File Operations (Read/Write, Open/Close)  \n\nWeek 4:\nDay 13: Introduction to I/O Subsystem - Device Drivers  \nDay 14: Performance Metrics in I/O Operations  \nDay 15: Security Basics - Access Control Models  \nDay 16: Encryption and Authentication Mechanisms  \n\nWeek 5:\nDay 17: Advanced Process Management (Threading, Job Scheduling)  \nDay 18: Distributed Systems Overview and Challenges  \nDay 19: Introduction to Cloud Computing and Hypervisors  \nDay 20: Recap of Key Concepts and Q&A Session"
+    }
+  ],
+  "completed_topics": [
+    "1.1"
+  ],
+  "current_topic_id": "1.2"
+}

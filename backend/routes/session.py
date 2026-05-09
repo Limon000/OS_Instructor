@@ -28,19 +28,27 @@ def _make_visual(tag_name: str, tag_args: str) -> VisualPayload | None:
 
 @router.get("", response_model=SessionData)
 def get_session(session_id: str = Query(...)) -> SessionData:
-    messages, mode, last_session = load_progress(session_id)
+    messages, mode, last_session, completed_topics, current_topic_id = load_progress(session_id)
     if messages is None:
         return SessionData()
     return SessionData(
         messages=[Message(**m) for m in messages],
         mode=mode,  # type: ignore[arg-type]
         last_session=last_session,
+        completed_topics=completed_topics,
+        current_topic_id=current_topic_id,
     )
 
 
 @router.post("/save")
 def save_session(req: SaveSessionRequest) -> dict:
-    save_progress(req.session_id, [m.model_dump() for m in req.messages], req.mode)
+    save_progress(
+        req.session_id,
+        [m.model_dump() for m in req.messages],
+        req.mode,
+        req.completed_topics,
+        req.current_topic_id,
+    )
     return {"ok": True}
 
 

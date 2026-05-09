@@ -8,6 +8,7 @@ from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.routes.chat import router as chat_router
+from backend.routes.mode_b import router as mode_b_router
 from backend.routes.session import router as session_router
 from backend.routes.visual import router as visual_router
 
@@ -40,5 +41,6 @@ async def add_csp(request: Request, call_next) -> Response:
 
 
 app.include_router(chat_router, prefix="/api")
+app.include_router(mode_b_router, prefix="/api/mode-b")
 app.include_router(session_router, prefix="/api/session")
 app.include_router(visual_router, prefix="/api/visual")

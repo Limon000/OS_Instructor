@@ -44,7 +44,7 @@ def _visual_dict(tag_name: str, tag_args: str) -> dict | None:
 @router.post("/greeting", response_model=GreetingResponse)
 def greeting(session_id: str = Query(...)) -> GreetingResponse:
     system_prompt = load_system_prompt()
-    saved_messages, saved_mode, _ = load_progress(session_id)
+    saved_messages, saved_mode, *_ = load_progress(session_id)
 
     if saved_messages:
         resume_trigger = saved_messages + [{"role": "user", "content": "[RESUME_SESSION]"}]
