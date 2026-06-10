@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "input=$(cat); file=$(echo \"$input\" | jq -r '.tool_input.file_path // empty'); if echo \"$file\" | grep -q '\\.py$'; then python -m py_compile \"$file\" 2>&1 && echo \"[syntax-check] ✅ $file\" || echo \"[syntax-check] ❌ Syntax error in $file\"; fi"
+            "command": "input=$(cat); file=$(echo \"$input\" | jq -r '.tool_input.file_path // empty'); if echo \"$file\" | grep -q '\\.py$'; then python -m py_compile \"$file\" 2>&1 && echo \"[syntax-check] ✅ $file\" || echo \"[syntax-check] ❌ Syntax error in $file\"; elif echo \"$file\" | grep -qE '\\.(ts|tsx)$'; then cd /Users/limon/Desktop/OS_Instructor && npx tsc --noEmit --project frontend/tsconfig.app.json 2>&1 | head -20 || echo \"[ts-check] ❌ TypeScript errors found\"; fi"
           }
         ]
       }
