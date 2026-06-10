@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LangGraph Workflow — OS Instructor</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: system-ui, "Segoe UI", Roboto, sans-serif;
+      background: #f9fafb;
+      color: #1f2937;
+      padding: 40px 24px;
+    }
+
+    header {
+      max-width: 900px;
+      margin: 0 auto 36px;
+    }
+
+    header h1 {
+      font-size: 26px;
+      font-weight: 700;
+      color: #154360;
+      margin-bottom: 6px;
+    }
+
+    header p {
+      font-size: 14px;
+      color: #6b7280;
+    }
+
+    .card {
+      max-width: 900px;
+      margin: 0 auto 28px;
+      background: white;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 28px 32px;
+      box-shadow: 0 1px 6px rgba(0,0,0,0.06);
+    }
+
+    .card h2 {
+      font-size: 16px;
+      font-weight: 700;
+      color: #154360;
+      margin-bottom: 18px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    /* ── Mermaid diagram ── */
+    .mermaid {
+      display: flex;
+      justify-content: center;
+      overflow-x: auto;
+    }
+
+    /* ── Tables ── */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13.5px;
+    }
+
+    th {
+      background: #EBF5FB;
+      color: #154360;
+      font-weight: 600;
+      padding: 9px 14px;
+      text-align: left;
+      border: 1px solid #d1d5db;
+    }
+
+    td {
+      padding: 8px 14px;
+      border: 1px solid #e5e7eb;
+      vertical-align: top;
+      line-height: 1.55;
+    }
+
+    tr:nth-child(even) td { background: #f9fafb; }
+
+    code {
+      background: #f3f4f6;
+      border-radius: 4px;
+      padding: 1px 6px;
+      font-size: 12.5px;
+      font-family: ui-monospace, Consolas, "Courier New", monospace;
+      color: #374151;
+    }
+
+    /* ── State schema ── */
+    .schema-grid {
+      display: grid;
+      grid-template-columns: auto 1fr 1fr;
+      gap: 0;
+      font-size: 13px;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .schema-grid .sh {
+      background: #EBF5FB;
+      font-weight: 700;
+      color: #154360;
+      padding: 8px 14px;
+      border-bottom: 1px solid #d1d5db;
+    }
+
+    .schema-grid .sd {
+      padding: 7px 14px;
+      border-bottom: 1px solid #f0f0f0;
+    }
+
+    .schema-grid .sd:last-child,
+    .schema-grid .sd:nth-last-child(2),
+    .schema-grid .sd:nth-last-child(3) {
+      border-bottom: none;
+    }
+
+    /* ── Node blocks ── */
+    .node-block {
+      margin-bottom: 22px;
+    }
+
+    .node-block h3 {
+      font-size: 14px;
+      font-weight: 700;
+      color: #2E86C1;
+      margin-bottom: 8px;
+    }
+
+    .node-block p {
+      font-size: 13.5px;
+      color: #374151;
+      line-height: 1.6;
+      margin-bottom: 6px;
+    }
+
+    pre {
+      background: #1e2432;
+      color: #d4d4d4;
+      border-radius: 8px;
+      padding: 14px 18px;
+      font-size: 12.5px;
+      font-family: ui-monospace, Consolas, "Courier New", monospace;
+      overflow-x: auto;
+      line-height: 1.55;
+      margin-top: 8px;
+    }
+
+    .tag { display: inline-block; border-radius: 4px; padding: 2px 8px; font-size: 12px; font-weight: 600; }
+    .tag-sync  { background: #dcfce7; color: #166534; }
+    .tag-async { background: #dbeafe; color: #1e40af; }
+    .tag-fixed { background: #fef3c7; color: #92400e; }
+
+    /* ── SSE table ── */
+    .sse-label { font-family: ui-monospace, monospace; font-size: 12px; }
+
+    footer {
+      max-width: 900px;
+      margin: 32px auto 0;
+      font-size: 12px;
+      color: #9ca3af;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>📊 LangGraph Chat Workflow — OS Instructor</h1>
+  <p>Source: <code>backend/services/graph.py</code> · Compiled once at startup as <code>chat_graph</code></p>
+</header>
+
+<!-- ── 1. Workflow Diagram ─────────────────────────────────────────────────── -->
+<div class="card">
+  <h2>Workflow Diagram</h2>
+  <div class="mermaid">
+flowchart TD
+    START([▶ START]) --> classify_node
+
+    classify_node["🔍 classify_node\n──────────────────\n_classifier_llm  temp=0\nClassifies user_input into:\nON_TOPIC · CASUAL · OFF_TOPIC"]
+
+    classify_node -->|"off_topic"| off_topic_node
+    classify_node -->|"on_topic or casual"| instructor_node
+
+    off_topic_node["📌 off_topic_node\n──────────────────\nFixed template — no LLM call\n'Just so you know, {topic} is\nnot part of this course...'"]
+
+    instructor_node["🎓 instructor_node  async\n──────────────────\nSub-path A  original_off_topic set?\n→ Briefly explain + back to OS 📘\n\nSub-path B  normal turn\n→ MODE_SYSTEM_PROMPTS[mode]\n  + full history → stream tokens"]
+
+    parse_visual_node["🖼 parse_visual_node\n──────────────────\nRegex: \\[VISUAL:tag:args\\]\nFound → strip tag from response\n        set visual_tag + visual_args\nNot found → pass through"]
+
+    off_topic_node --> END1([⏹ END])
+    instructor_node --> parse_visual_node
+    parse_visual_node --> END2([⏹ END])
+
+    style START fill:#2E86C1,color:#fff,stroke:none
+    style END1 fill:#6b7280,color:#fff,stroke:none
+    style END2 fill:#6b7280,color:#fff,stroke:none
+    style classify_node fill:#EBF5FB,stroke:#2E86C1,stroke-width:2px
+    style off_topic_node fill:#fff7ed,stroke:#f97316,stroke-width:2px
+    style instructor_node fill:#f0fdf4,stroke:#16a34a,stroke-width:2px
+    style parse_visual_node fill:#faf5ff,stroke:#7c3aed,stroke-width:2px
+  </div>
+</div>
+
+<!-- ── 2. State Schema ─────────────────────────────────────────────────────── -->
+<div class="card">
+  <h2>State Schema — <code>ChatState</code></h2>
+  <table>
+    <thead>
+      <tr><th>Field</th><th>Type</th><th>Description</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>raw_messages</code></td><td><code>list[dict]</code></td><td>Full conversation history (role / content dicts)</td></tr>
+      <tr><td><code>mode</code></td><td><code>str</code></td><td><code>"A"</code> | <code>"B"</code> | <code>"C"</code> — selects the system prompt</td></tr>
+      <tr><td><code>user_input</code></td><td><code>str</code></td><td>Latest user message text — passed to classifier</td></tr>
+      <tr><td><code>original_off_topic</code></td><td><code>Optional[str]</code></td><td>Set when user replies "Yes, explain it"; triggers off-topic sub-path in instructor_node</td></tr>
+      <tr><td><code>system_prompt</code></td><td><code>str</code></td><td>Full <code>instructor.md</code> content — fallback when mode has no entry in <code>_MODE_SYSTEM_PROMPTS</code></td></tr>
+      <tr><td><code>classification</code></td><td><code>str</code></td><td>Output of classify_node: <code>"on_topic"</code> | <code>"casual"</code> | <code>"off_topic"</code></td></tr>
+      <tr><td><code>response</code></td><td><code>str</code></td><td>Final assistant text with visual tag stripped</td></tr>
+      <tr><td><code>visual_tag</code></td><td><code>str</code></td><td>e.g. <code>"paging_diagram"</code>, <code>"gantt_chart"</code> — empty if no visual</td></tr>
+      <tr><td><code>visual_args</code></td><td><code>str</code></td><td>e.g. <code>"FIFO"</code>, <code>"98,183,37"</code> — empty if no args</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ── 3. Nodes ────────────────────────────────────────────────────────────── -->
+<div class="card">
+  <h2>Nodes</h2>
+
+  <div class="node-block">
+    <h3>🔍 classify_node &nbsp;<span class="tag tag-sync">sync</span></h3>
+    <p>Classifies <code>user_input</code> using a deterministic LLM (<code>temperature=0</code>). Returns one of three labels. Errors default to <code>"on_topic"</code> to avoid false positives on the off-topic guard.</p>
+    <table>
+      <thead><tr><th>Label</th><th>Meaning</th><th>Example</th></tr></thead>
+      <tbody>
+        <tr><td><code>ON_TOPIC</code></td><td>OS-related question</td><td>"What is paging?"</td></tr>
+        <tr><td><code>CASUAL</code></td><td>Social / emotional message</td><td>"Good morning!", "Thanks!"</td></tr>
+        <tr><td><code>OFF_TOPIC</code></td><td>Unrelated to OS</td><td>"Solve 2+2", "Write a poem"</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="node-block">
+    <h3>📌 off_topic_node &nbsp;<span class="tag tag-fixed">no LLM call</span></h3>
+    <p>Generates a fixed template response — no LLM involved. Uses the first 6 words of <code>user_input</code> as the topic label. Routes directly to END, skipping <code>parse_visual_node</code>.</p>
+    <pre>"📌 Just so you know, **{topic}** is not part of this Operating Systems course.\n\nBut if you're curious, I'm happy to explain it as a special request! 😊"</pre>
+  </div>
+
+  <div class="node-block">
+    <h3>🎓 instructor_node &nbsp;<span class="tag tag-async">async</span></h3>
+    <p>Streams the teaching response. Two internal sub-paths:</p>
+    <table>
+      <thead><tr><th>Sub-path</th><th>Condition</th><th>Behaviour</th></tr></thead>
+      <tbody>
+        <tr><td><strong>A — Off-topic explain</strong></td><td><code>original_off_topic</code> is set</td><td>Brief friendly explanation of the off-topic subject, then "Now, back to OS! 📘"</td></tr>
+        <tr><td><strong>B — Normal teaching</strong></td><td>Default</td><td>Picks <code>_MODE_SYSTEM_PROMPTS[mode]</code> and passes full conversation history. <code>casual</code> messages also take this path and get a warm 1–3 sentence reply.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="node-block">
+    <h3>🖼 parse_visual_node &nbsp;<span class="tag tag-sync">sync</span></h3>
+    <p>Post-processes the instructor's response. Searches for <code>[VISUAL:tag_name:args]</code> using regex <code>\[VISUAL:([a-z_]+)(?::([^\]]*))?\]</code>. If found, strips the tag from <code>response</code> and populates <code>visual_tag</code> + <code>visual_args</code>. These are serialised into a <code>VisualPayload</code> and sent in the SSE <code>done</code> event.</p>
+  </div>
+</div>
+
+<!-- ── 4. Edge Map ─────────────────────────────────────────────────────────── -->
+<div class="card">
+  <h2>Edge Map</h2>
+  <table>
+    <thead><tr><th>From</th><th>To</th><th>Condition</th></tr></thead>
+    <tbody>
+      <tr><td><code>START</code></td><td><code>classify_node</code></td><td>Always</td></tr>
+      <tr><td><code>classify_node</code></td><td><code>off_topic_node</code></td><td><code>classification == "off_topic"</code></td></tr>
+      <tr><td><code>classify_node</code></td><td><code>instructor_node</code></td><td><code>classification == "on_topic"</code> or <code>"casual"</code></td></tr>
+      <tr><td><code>off_topic_node</code></td><td><code>END</code></td><td>Always</td></tr>
+      <tr><td><code>instructor_node</code></td><td><code>parse_visual_node</code></td><td>Always</td></tr>
+      <tr><td><code>parse_visual_node</code></td><td><code>END</code></td><td>Always</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ── 5. LLM Instances ───────────────────────────────────────────────────── -->
+<div class="card">
+  <h2>LLM Instances</h2>
+  <table>
+    <thead><tr><th>Instance</th><th>Model</th><th>Temperature</th><th>Used in</th></tr></thead>
+    <tbody>
+      <tr><td><code>_classifier_llm</code></td><td><code>qwen2.5-coder:7b</code></td><td><code>0</code> (deterministic)</td><td><code>classify_node</code></td></tr>
+      <tr><td><code>_llm</code></td><td><code>qwen2.5-coder:7b</code></td><td>default</td><td><code>instructor_node</code> (streamed)</td></tr>
+    </tbody>
+  </table>
+  <p style="margin-top:10px;font-size:13px;color:#6b7280;">Both timeout after <code>OLLAMA_TIMEOUT</code> seconds (default 60 s, override via <code>OLLAMA_TIMEOUT</code> env var).</p>
+</div>
+
+<!-- ── 6. SSE Streaming Protocol ─────────────────────────────────────────── -->
+<div class="card">
+  <h2>SSE Streaming Protocol</h2>
+  <p style="font-size:13.5px;color:#374151;margin-bottom:14px;">
+    <code>chat.py</code> calls <code>chat_graph.astream_events(input_state, version="v2")</code>
+    and maps LangGraph events to SSE frames sent to the React frontend.
+  </p>
+  <table>
+    <thead><tr><th>LangGraph Event</th><th>SSE Frame</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><code class="sse-label">on_chat_model_stream</code> from <code>instructor_node</code></td>
+        <td><code>{"type":"token","delta":"..."}</code></td>
+      </tr>
+      <tr>
+        <td><code class="sse-label">on_chain_end</code> + <code>classification == "off_topic"</code></td>
+        <td><code>{"type":"offtopic","content":"..."}</code></td>
+      </tr>
+      <tr>
+        <td><code class="sse-label">on_chain_end</code> + normal finish</td>
+        <td><code>{"type":"done","content":"...","visual":{...}}</code></td>
+      </tr>
+      <tr>
+        <td>Any exception</td>
+        <td><code>{"type":"error","message":"..."}</code></td>
+      </tr>
+    </tbody>
+  </table>
+  <p style="margin-top:10px;font-size:13px;color:#6b7280;">Tokens are streamed only from <code>instructor_node</code> — <code>classify_node</code> tokens are suppressed via <code>langgraph_node</code> metadata filter.</p>
+</div>
+
+<!-- ── 7. Mode System Prompts ─────────────────────────────────────────────── -->
+<div class="card">
+  <h2>Mode System Prompts</h2>
+  <table>
+    <thead><tr><th>Mode</th><th>Page</th><th>Instructor Behaviour</th></tr></thead>
+    <tbody>
+      <tr><td><strong>A</strong></td><td><code>/mode-a</code></td><td>5-section teaching: overview → explanation → example → connections → 3-question quiz</td></tr>
+      <tr><td><strong>B</strong></td><td><code>/mode-b</code></td><td>Week-by-week roadmap → daily topic teaching with structured progress</td></tr>
+      <tr><td><strong>C</strong></td><td><code>/mode-c</code></td><td>5 diagnostic questions (one at a time) → level classification (🟡🟠🟢) → personalised roadmap</td></tr>
+      <tr><td><em>fallback</em></td><td>—</td><td>Full <code>instructor.md</code> — used for greeting and resume-session generation only</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<footer>OS Instructor · LangGraph Workflow · backend/services/graph.py</footer>
+
+<script>
+  mermaid.initialize({ startOnLoad: true, theme: "default", flowchart: { curve: "basis" } });
+</script>
+</body>
+</html>
