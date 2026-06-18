@@ -302,6 +302,7 @@ type Tab = "description" | "content" | "howto";
 export default function HomePage() {
   const navigate = useNavigate();
   const onStart = () => navigate("/select");
+  const onLogin = () => navigate("/login");
   const [tab, setTab] = useState<Tab>("description");
 
   return (
@@ -319,7 +320,7 @@ export default function HomePage() {
           <li><a href="#">Contact Us</a></li>
         </ul>
         <div className="hp-nav-actions">
-          <button className="hp-btn-ghost" onClick={onStart}>Login</button>
+          <button className="hp-btn-ghost" onClick={onLogin}>Login</button>
           <button className="hp-btn-primary" onClick={onStart}>Start Learning</button>
         </div>
       </nav>
