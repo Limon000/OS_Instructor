@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 import "./HomePage.css";
 
 /* ── Data ─────────────────────────────────────────────────────────────────── */
@@ -301,9 +302,23 @@ type Tab = "description" | "content" | "howto";
 
 export default function HomePage() {
   const navigate = useNavigate();
-  const onStart = () => navigate("/select");
-  const onLogin = () => navigate("/login");
+  const { isAuthenticated, user, logout } = useAuth();
   const [tab, setTab] = useState<Tab>("description");
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  const onStart = () => navigate(isAuthenticated ? "/select" : "/login?next=/select");
+  const onLogin = () => navigate("/login");
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setUserMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   return (
     <div style={{ minHeight: "100vh", background: "#f9fafb" }}>
@@ -320,7 +335,38 @@ export default function HomePage() {
           <li><a href="#">Contact Us</a></li>
         </ul>
         <div className="hp-nav-actions">
-          <button className="hp-btn-ghost" onClick={onLogin}>Login</button>
+          {isAuthenticated && user ? (
+            <div className="hp-user-menu" ref={menuRef}>
+              <button
+                className="hp-user-avatar-btn"
+                onClick={() => setUserMenuOpen((o) => !o)}
+                aria-label="User menu"
+                aria-expanded={userMenuOpen}
+              >
+                <span className="hp-user-avatar">
+                  {user.role[0].toUpperCase()}
+                </span>
+                <span className="hp-user-label">{user.role}</span>
+                <span className="hp-user-chevron">▾</span>
+              </button>
+              {userMenuOpen && (
+                <div className="hp-user-dropdown" role="menu">
+                  <div className="hp-user-dropdown-info">
+                    <span className="hp-user-dropdown-role">{user.role}</span>
+                  </div>
+                  <button
+                    className="hp-user-dropdown-item"
+                    role="menuitem"
+                    onClick={() => { logout(); setUserMenuOpen(false); navigate("/"); }}
+                  >
+                    Sign out
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <button className="hp-btn-ghost" onClick={onLogin}>Login</button>
+          )}
           <button className="hp-btn-primary" onClick={onStart}>Start Learning</button>
         </div>
       </nav>
@@ -559,7 +605,9 @@ export default function HomePage() {
             </div>
             <div className="hp-card-body">
               <div className="hp-card-free">Free</div>
-              <div className="hp-card-badge">AI-powered • No signup required</div>
+              <div className="hp-card-badge">
+                {isAuthenticated ? "AI-powered • Ready to learn" : "AI-powered • Login to start"}
+              </div>
 
               <button
                 className="hp-card-start-btn"

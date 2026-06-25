@@ -2,9 +2,11 @@ import { useEffect, useState } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import type { Viz } from "@viz-js/viz";
 import { SessionProvider } from "./context/SessionContext";
+import { AuthProvider } from "./context/AuthContext";
 import ErrorBoundary from "./components/ErrorBoundary";
 import HomePage from "./pages/HomePage";
 import LoginPage from "./pages/LoginPage";
+import RegisterPage from "./pages/RegisterPage";
 import ModeSelectPage from "./pages/ModeSelectPage";
 import ModeAPage from "./pages/ModeAPage";
 import ModeBPage from "./pages/ModeBPage";
@@ -52,24 +54,27 @@ export default function App() {
 
   return (
     <BrowserRouter>
-      <Routes>
-        <Route
-          path="/"
-          element={
-            <ErrorBoundary>
-              <div className="home-view">
-                <HomePage />
-              </div>
-            </ErrorBoundary>
-          }
-        />
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/select" element={<ModeSelectPage />} />
+      <AuthProvider>
+        <Routes>
+          <Route
+            path="/"
+            element={
+              <ErrorBoundary>
+                <div className="home-view">
+                  <HomePage />
+                </div>
+              </ErrorBoundary>
+            }
+          />
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
+          <Route path="/select" element={<ModeSelectPage />} />
         <Route path="/mode-a" element={<ModeALearningPage viz={viz} />} />
         <Route path="/mode-b" element={<ModeBLearningPage viz={viz} />} />
         <Route path="/mode-c" element={<ModeCLearningPage viz={viz} />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </AuthProvider>
     </BrowserRouter>
   );
 }
