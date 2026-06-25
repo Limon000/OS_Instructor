@@ -11,6 +11,12 @@ build/
 # Sessions (runtime data)
 sessions/
 
+# SQLite database + backups
+data/
+*.db
+*.db-wal
+*.db-shm
+
 # Environment
 .env
 .env.*
