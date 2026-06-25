@@ -45,3 +45,14 @@ export interface ModeSelectResponse {
   visual: VisualPayload | null;
   is_off_topic: boolean;
 }
+
+export interface AuthUser {
+  user_id: string;
+  role: "student" | "instructor" | "admin";
+}
+
+export interface AuthTokenResponse {
+  user_id: string;
+  token: string;
+  role: string;
+}
