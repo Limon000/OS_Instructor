@@ -38,11 +38,11 @@ async function apiLogin(email: string, password: string) {
   return res.json();
 }
 
-async function apiRegister(email: string, fullName: string, password: string) {
+async function apiRegister(email: string, fullName: string, password: string, role: string) {
   const res = await fetch(`${BASE}/api/auth/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, full_name: fullName, password }),
+    body: JSON.stringify({ email, full_name: fullName, password, role }),
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
@@ -63,7 +63,7 @@ interface AuthContextValue {
   isAuthenticated: boolean;
   isLoading: boolean;
   login(email: string, password: string): Promise<void>;
-  register(email: string, fullName: string, password: string): Promise<void>;
+  register(email: string, fullName: string, password: string, role: string): Promise<void>;
   logout(): void;
 }
 
@@ -91,8 +91,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser({ user_id: data.user_id, role: data.role });
   }
 
-  async function register(email: string, fullName: string, password: string) {
-    const data = await apiRegister(email, fullName, password);
+  async function register(email: string, fullName: string, password: string, role: string) {
+    const data = await apiRegister(email, fullName, password, role);
     setStoredToken(data.token);
     setUser({ user_id: data.user_id, role: data.role });
   }
