@@ -3,14 +3,20 @@
 from __future__ import annotations
 
 import os
+from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import inspect
 
+from backend.routes.auth import router as auth_router
 from backend.routes.chat import router as chat_router
 from backend.routes.mode_b import router as mode_b_router
+from backend.routes.profile import router as profile_router
 from backend.routes.session import router as session_router
 from backend.routes.visual import router as visual_router
+from db.connection import engine, run_schema_file
 
 CORS_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",")
 
@@ -22,7 +28,19 @@ CSP = (
     "connect-src 'self';"
 )
 
-app = FastAPI(title="OS Instructor API", version="1.0.0")
+SCHEMA_FILE = Path(__file__).resolve().parent.parent / "db" / "sqlite_schema.sql"
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    # Auto-create DB tables on first run if they don't exist yet
+    insp = inspect(engine)
+    if "users" not in insp.get_table_names():
+        run_schema_file(SCHEMA_FILE)
+    yield
+
+
+app = FastAPI(title="OS Instructor API", version="1.0.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -40,7 +58,9 @@ async def add_csp(request: Request, call_next) -> Response:
     return response
 
 
+app.include_router(auth_router, prefix="/api")
 app.include_router(chat_router, prefix="/api")
 app.include_router(mode_b_router, prefix="/api/mode-b")
+app.include_router(profile_router, prefix="/api")
 app.include_router(session_router, prefix="/api/session")
 app.include_router(visual_router, prefix="/api/visual")

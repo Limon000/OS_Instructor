@@ -11,6 +11,7 @@ import ModeSelectPage from "./pages/ModeSelectPage";
 import ModeAPage from "./pages/ModeAPage";
 import ModeBPage from "./pages/ModeBPage";
 import ModeCPage from "./pages/ModeCPage";
+import ProfilePage from "./pages/ProfilePage";
 
 function ModeALearningPage({ viz }: { viz: Viz | null }) {
   return (
@@ -72,6 +73,7 @@ export default function App() {
         <Route path="/mode-a" element={<ModeALearningPage viz={viz} />} />
         <Route path="/mode-b" element={<ModeBLearningPage viz={viz} />} />
         <Route path="/mode-c" element={<ModeCLearningPage viz={viz} />} />
+          <Route path="/profile" element={<ProfilePage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AuthProvider>

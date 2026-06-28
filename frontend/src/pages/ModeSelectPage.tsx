@@ -62,6 +62,9 @@ export default function ModeSelectPage() {
           ← Home
         </button>
         <span className="ms-header-title">📘 OS Course Instructor</span>
+        <button className="ms-back-btn" style={{ marginLeft: "auto" }} onClick={() => navigate("/profile")}>
+          My Profile
+        </button>
       </header>
 
       <main className="ms-main">

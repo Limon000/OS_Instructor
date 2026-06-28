@@ -3,10 +3,28 @@ import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import "./auth.css";
 
+type Role = "student" | "instructor";
+
+const ROLES: { key: Role; icon: string; title: string; desc: string }[] = [
+  {
+    key: "student",
+    icon: "🎓",
+    title: "Student",
+    desc: "Learn OS concepts with guided lessons, quizzes, and progress tracking.",
+  },
+  {
+    key: "instructor",
+    icon: "📘",
+    title: "Instructor",
+    desc: "Create and manage courses, track student progress, and share expertise.",
+  },
+];
+
 export default function RegisterPage() {
   const { register } = useAuth();
   const navigate = useNavigate();
 
+  const [role, setRole] = useState<Role>("student");
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -29,7 +47,7 @@ export default function RegisterPage() {
 
     setLoading(true);
     try {
-      await register(email, fullName, password);
+      await register(email, fullName, password, role);
       navigate("/select", { replace: true });
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Registration failed. Please try again.");
@@ -40,17 +58,39 @@ export default function RegisterPage() {
 
   return (
     <div className="auth-page">
-      <div className="auth-card">
+      <div className="auth-card auth-card--wide">
         <div className="auth-logo">
           <span className="auth-logo-icon">💻</span>
           <span className="auth-logo-text">OS Instructor</span>
         </div>
         <h1 className="auth-title">Create your account</h1>
+
+        {/* Role picker */}
+        <div className="role-picker" role="radiogroup" aria-label="Account type">
+          {ROLES.map((r) => (
+            <button
+              key={r.key}
+              type="button"
+              className={`role-card${role === r.key ? " role-card--active" : ""}`}
+              onClick={() => setRole(r.key)}
+              aria-pressed={role === r.key}
+            >
+              <span className="role-icon">{r.icon}</span>
+              <span className="role-title">{r.title}</span>
+              <span className="role-desc">{r.desc}</span>
+              <span className="role-check" aria-hidden="true">
+                {role === r.key ? "✓" : ""}
+              </span>
+            </button>
+          ))}
+        </div>
+
         {error && (
           <p className="auth-error" role="alert">
             {error}
           </p>
         )}
+
         <form onSubmit={handleSubmit} className="auth-form">
           <label>
             Full Name
@@ -98,9 +138,12 @@ export default function RegisterPage() {
             />
           </label>
           <button type="submit" className="auth-btn" disabled={loading}>
-            {loading ? "Creating account…" : "Create Account"}
+            {loading
+              ? "Creating account…"
+              : `Create ${role === "student" ? "Student" : "Instructor"} Account`}
           </button>
         </form>
+
         <p className="auth-footer">
           Already have an account? <Link to="/login">Sign in</Link>
         </p>
